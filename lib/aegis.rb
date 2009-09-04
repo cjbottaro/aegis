@@ -1,4 +1,5 @@
 # Include hook code here
+require 'aegis/meta_class'
 require 'aegis/constants'
 require 'aegis/normalization'
 require 'aegis/permission_error'
