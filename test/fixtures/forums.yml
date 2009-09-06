@@ -1,0 +1,11 @@
+searching:
+  account: google
+  name: searching
+
+crawling:
+  account: google
+  name: crawling
+
+advertising:
+  account: google
+  name: advertising

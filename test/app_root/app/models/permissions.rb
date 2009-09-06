@@ -5,6 +5,9 @@ class Permissions < Aegis::Permissions
   role :student
   role :admin, :default_permission => :allow
   
+  role :reader
+  role :writer
+  
   permission :use_empty do
   end
   
@@ -44,6 +47,23 @@ class Permissions < Aegis::Permissions
   permission :draw do
     deny :student
     deny :admin
+  end
+  
+  permission :edit_post do
+    allow :writer
+  end
+  
+  permission :view_post do
+    allow :reader
+    allow :writer
+  end
+  
+  permission :create_post do
+    allow :writer
+  end
+  
+  permission :create_forum do
+    allow :writer
   end
   
 end

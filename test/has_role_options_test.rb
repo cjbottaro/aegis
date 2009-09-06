@@ -24,5 +24,10 @@ class HasRoleOptionsTest < ActiveSupport::TestCase
     end
     
   end
-
+  
+  def test_setting_hierarchy
+    assert_equal "forum", User.aegis_role_hierarchy["Post"]
+    assert_equal "account", User.aegis_role_hierarchy["Forum"]
+  end
+  
 end

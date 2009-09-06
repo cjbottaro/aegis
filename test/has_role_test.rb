@@ -35,5 +35,54 @@ class HasRoleTest < ActiveSupport::TestCase
     end
     
   end
-
+  
+  def test_role_in
+    create_role_assignments
+    user = users(:with_hierarchy)
+    do_test_role_in(user)
+  end
+  
+  def test_role_in_using_hierarchy_accessor
+    create_role_assignments
+    saved_role_heirarchy = User.aegis_role_hierarchy
+    
+    assert_not_nil User.aegis_role_hierarchy
+    User.instance_variable_set("@aegis_role_hierarchy", nil)
+    assert_nil User.aegis_role_hierarchy
+    
+    User.instance_variable_set("@aegis_role_hierarchy_accessor", "parent")
+    assert_equal "parent", User.aegis_role_hierarchy_accessor
+    
+    do_test_role_in(users(:with_hierarchy))
+    
+    # So the rest of the tests don't break.
+    User.instance_variable_set("@aegis_role_hierarchy", saved_role_heirarchy)
+    User.instance_variable_set("@aegis_role_hierarchy_accessor", nil)
+  end
+  
+  def test_forced_role
+    create_role_assignments
+    user = users(:with_hierarchy)
+    user.update_attribute(:is_admin, true)
+    assert_equal "superuser", user.role
+    assert_equal "superuser", user.role_in(accounts(:google))
+    assert_equal "superuser", user.role_in(forums(:searching))
+    assert_equal "superuser", user.role_in(posts(:searching101))
+    assert_equal "superuser", user.role_in(posts(:searching102))
+  end
+  
+private
+  
+  def do_test_role_in(user)
+    assert_equal :admin, user.role_in(accounts(:google)).name
+    
+    assert_equal :writer, user.role_in(forums(:searching)).name
+    assert_equal :writer, user.role_in(posts(:searching101)).name
+    assert_equal :reader, user.role_in(posts(:searching102)).name
+    
+    assert_equal :admin, user.role_in(forums(:crawling)).name
+    assert_equal :admin, user.role_in(posts(:crawling101)).name
+    assert_equal :admin, user.role_in(posts(:crawling102)).name
+  end
+  
 end

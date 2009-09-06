@@ -1,176 +1,198 @@
-= Aegis - role-based permissions for your user models
+= Abstract
 
-Aegis allows you to manage fine-grained, complex permission for user accounts in a central place.
+Aegis modified to support multiple roles per actors based on context and your data model hierarchy.
+
+This file will only describe the new functionality I added to Aegis.  See the original Aegis README.rdoc here:  http://github.com/makandra/aegis/tree/master
+
+== Description (aka longer abstract)
+
+Aegis is a pretty simple permission system:  a user belongs to a single role, and a role has many permissions associated with it.
+
+My work requires a user to have multiple roles.  Which one is chosen at any given time is based on a context.  For example, we want <tt>user:123</tt> to have role <tt>:writer</tt> in <tt>forum:abc</tt>, but role <tt>:reader</tt> in <tt>forum:xyz</tt>.
+
+Furthermore, we want to have a role hierarchy that follows our object model.  If no role is defined for a user for a given context, then we ask if that context has a parent and if a role is defined there (again for that user).  For example, does <tt>user:123</tt> have a role for <tt>forum:ijk</tt>?  No.  Does <tt>forum:ijk</tt> have a parent?  Yes, it is <tt>account:1</tt>.  Does <tt>user:123</tt> have a role in <tt>account:1</tt>?  Yes, it is <tt>:writer</tt>.
+
+Note that all previous Aegis functionality still exists and works (none of the existing unit tests were changed at all).
 
 == Installation
 
 Add the following to your <tt>Initializer.run</tt> block in your <tt>environment.rb</tt>:
-    config.gem 'makandra-aegis', :lib => 'aegis', :source => 'http://gems.github.com'
+    config.gem 'cjbottaro-aegis', :lib => 'aegis', :source => 'http://gems.github.com'
 Then do a 
     sudo rake gems:install
 
 Alternatively, use
     sudo gem sources -a http://gems.github.com
-    sudo gem install makandra-aegis
+    sudo gem install cjbottaro-aegis
 
-== Example 
+== Database Migration
 
-First, let's define some roles:
+You need to create a table to keep track of which actors are assigned which roles for each context.
 
-    # app/models/permissions.rb
-    class Permissions < Aegis::Permissions
-
-      role :guest
-      role :registered_user
-      role :moderator
-      role :administrator, :default_permission => :allow
-      
-      permission :edit_post do |user, post|
-        allow :registered_user do
-          post.creator == user      # a registered_user can only edit his own posts
-        end
-        allow :moderator
+  class CreateRoleAssignments < ActiveRecord::Migration
+    def self.up
+      create_table :role_assignments do |t|
+        t.string  :actor_type,    :null => false
+        t.integer :actor_id,      :null => false
+        t.string  :role_name,     :null => false
+        t.string  :context_type,  :null => false
+        t.integer :context_id,    :null => false
+        t.timestamps
       end
-      
-      permission :read_post do |post|
-        allow :everyone
-        deny :guest do
-          post.private?             # guests may not read private posts
-        end
-      end
-
     end
-
-
-Now we assign roles to users. For this, the users table needs to have a string
-column +role_name+.
-
-    # app/models/user.rb
-    class User
-      has_role
-    end
-
-
-These permissions may be used in views and controllers:
     
-    # app/views/posts/index.html.erb
-    @posts.each do |post|
-      <% if current_user.may_read_post? post %>
-        <%= render post %>
-        <% if current_user.may_edit_post? post %>
-          <%= link_to 'Edit', edit_post_path(post) %>
-        <% end %>
-      <% end %>
-    <% end %>
-
-
-    # app/controllers/posts_controller.rb
-    class PostsController
-      # ...
-
-      def update
-        @post = Post.find(params[:id])
-        current_user.may_edit_post! @post    # raises an Aegis::PermissionError for unauthorized access
-        # ...
-      end
-
+    def self.down
+      drop_table :role_assignments
     end
+  end
 
-== Details
+== Example
 
-=== Roles
+First, let's define a data model for our example.  An Account has many Users and Forums.  A Forum has many Posts.
 
-To equip a (user) model with any permissions, you simply call *has_role* within
-the model:
-    class User < ActiveRecord::Base
-      has_role
+  Account
+  |-> User
+  |-> Forum
+      |-> Post
+
+Now let's assign some roles for our user.
+
+  user = User.find_by_name("chris")
+  forum = Forum.find_by_name("coping with metrosexuality")
+  RoleAssignment.create! :actor     => user,
+                         :role_name => :admin,
+                         :context   => forum
+  post = forum.posts.find_by_title("acceptance")
+  RoleAssignment.create! :actor     => user,
+                         :role_name => :reader,
+                         :context   => post
+
+Now we can query permissions.
+
+  user.may_create_posts_in?(forum) # user has role of :admin in this forum.
+  => true
+  
+  user.may_edit_content_for?(post) # user has role of :reader for this post.
+  => false
+  
+  post = forum.posts.find_by_title("denial")
+  user.may_edit_content_for?(post) # user does not have role for this post, so we look at that
+                                   # post's parent and see he is a an :admin there.
+  => true
+  
+The syntax is very similar to normal Aegis except you can suffix permission queries with <tt>_in?</tt> or <tt>_for?</tt> and the last argument to the query is the context.  So permission queries that accept parameters work like normal, you just pass in the context as the last parameter.
+
+== How does Aegis know the object model hierarchy?
+
+First way... you specify the hierarchy as a hash where the key is a class name and the value is an association name that invokes the parent.
+
+  class User < ActiveRecord::Base
+    has_role :hierarchy => { "Post" => "forum",
+                             "Forum" => "account" }
+  end
+
+Second way... you specify a single association name that will always return a model's parent.
+
+  class User < ActiveRecord::Base
+    has_role :hierarchy_accessor => "parent"
+  end
+  
+  class Post < ActiveRecord::Base
+    belongs_to :forum
+    def parent
+      forum
     end
-Aegis assumes that the corresponding database table has a string-valued column
-called +role_name+. You may override the name with the <tt>:name_accessor =>
-:my_role_column</tt> option.
-
-The roles and permissions themselves are defined in a class inheriting from
-<b>Aegis::Permissions</b>. To define roles you create a model <tt>permissions.rb</tt>
-and use the *role* method:
-    class Permissions < Aegis::Permissions
-      role 'role_name'
+  end
+  
+  class Forum < ActiveRecord::Base
+    belongs_to :account
+    def parent
+      account
     end
+  end
 
-By default, users belonging to this role are not permitted anything. You may
-override this with <tt>:default_permission => :allow</tt>, e.g.
-    role 'admin', :default_permission => :allow
+== Forcing certain roles under specific conditions
 
-=== Permissions
+My work had an additional requirement that if User#is_admin? is true, then that user should always have the role of <tt>:superuser</tt>, regardless of the context.
 
-Permissions are specified with the *permission* method and *allow* and *deny*
-    permission :do_something do
-        allow :role_a, :role_b
-        deny :role_c
-    end
+  class User < ActiveRecord::Base
+    has_role :force_superuser_if => Proc.new{ |user| user.is_admin? }
+  end
+  
+  user = User.first(:conditions => { :is_admin => true })
+  user.role_in(anything)
+  => :superuser
+  
+  user.may_edit_content_for?(anything)
+  => true
 
-Your user model just received two methods called <b>User#may_do_something?</b>
-and <b>User#may_do_something!</b>. The first one with the ? returns true for users with
-+role_a+ and +role_b+, and false for users with +role_c+. The second one with the ! raises an
-Aegis::PermissionError for +role_c+.
+The format of the key is special.  It must be of the form <tt>force_<role_name>_if</tt>.  There can be multiple keys of this form.  The role is determined by the first one who's Proc returns true.  They are evaluated in random order (thus is the nature of Hashes).
 
-=== Normalization
+== Optimizations
 
-Aegis will perform some normalization. For example, the permissions
-+edit_something+ and +update_something+ will be the same, each granting both 
-<tt>may_edit_something?</tt> and <tt>may_update_something?</tt>. The following normalizations
-are active:
-* edit = update
-* show = list = view = read
-* delete = remove = destroy
+We don't want to read the role assignments from the database every time we do a permission check.  The solution to this is to read them once when the user logs in, store it in the session, then load from the session on each request.
 
-=== Complex permissions (with parameters)
- 
-*allow* and *deny* can also take a block that may return +true+ or +false+
-indicating if this really applies. So
-    permission :pull_april_fools_prank do
-      allow :everyone do
-        Date.today.month == 4 and Date.today.day == 1
-      end
-    end
-will generate a <tt>may_pull_april_fools_prank?</tt> method that only returns true on
-April 1.
+In your login controller/action...
 
-This becomes more useful if you pass parameters to a <tt>may_...?</tt> method, which
-are passed through to the permission block (together with the user object). This
-way you can define more complex permissions like
-    permission :edit_post do |current_user, post|
-      allow :registered_user do
-        post.owner == current_user
-      end
+  if successful_login?
+    session[:permissions] = current_user.role_assignments_hash
+  else
+    ...
+  end
+
+In your controller/action that checks if a user is logged in...
+
+  if logged_in?
+    current_user.role_assignments_override = session[:permissions]
+  else
+    ...
+  end
+    
+This way the role assignments are only read when a user logs in.
+
+== Caveats and TODOs
+
+Roles are associated with contexts, but permissions are not.  For example, this can happen.
+
+  Permissions < Aegis::Permissions
+    permission :delete_forum do
       allow :admin
     end
-which will permit admins and post owners to edit posts.
+  end
+  
+  user = User.find_by_name("chris")
+  
+  user.role_in(user.account)
+  => :reader
+    
+  user.may_delete_forum_in?(user.account)
+  => false
+  
+  post = Post.find_by_name("some stupid post")
+  
+  user.role_in(post)
+  => :admin
+  
+  user.may_delete_forum_in?(post)
+  => true
+  
+Arguably that is programmer error.  You should know better than to pass in an incorrect context to a permission check.
 
-=== For your convenience
+It would be nice to associate permissions with contexts like such.
 
-As a convenience, if you create a permission ending in a plural 's', this
-automatically includes the singular form. That is, after
-    permission :read_posts do
-      allow :everyone
-    end
-<tt>.may_read_post? @post</tt> will return true, as well.
-
-If you want to grant +create_something+, +read_something+, +update_something+
-and +destroy_something+ permissions all at once, just use
-    permission :crud_something do
+  Permissions < Aegis::Permissions
+    permission :delete_forum do
+      context "Account" # Alternatively, contexts "C1", "C2", ...
       allow :admin
     end
+  end
+  
+  user.may_delete_forum_in?(some_post)
+  => Exception, permission :delete_forum does not make sense in the context of a Post
 
-If several permission blocks (or several allow and denies) apply to a certain
-role, the later one always wins. That is
-    permission :do_something do
-      deny :everyone
-      allow :admin
-    end
-will work as expected.
+I'll probably add this functionality soon.
 
-=== Credits
+=== Author
 
-Henning Koch, Tobias Kraze
-
-www.makandra.de
+Christopher J. Bottaro
+http://github.com/cjbottaro

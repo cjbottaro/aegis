@@ -20,4 +20,25 @@ ActiveSupport::TestCase.class_eval do
   self.use_transactional_fixtures = true
   self.use_instantiated_fixtures = false
   self.fixture_path = "#{File.dirname(__FILE__)}/fixtures"
+  
+  fixtures :all
+  
+  def create_role_assignments
+    Aegis::RoleAssignment.create! :actor      => users(:with_hierarchy),
+                                  :role_name  => "admin",
+                                  :context    => accounts(:google)
+    
+    Aegis::RoleAssignment.create! :actor      => users(:with_hierarchy),
+                                  :role_name  => "writer",
+                                  :context    => forums(:searching)
+                                  
+    Aegis::RoleAssignment.create! :actor      => users(:with_hierarchy),
+                                  :role_name  => "reader",
+                                  :context    => posts(:searching102)
+                                  
+    Aegis::RoleAssignment.create! :actor      => users(:with_hierarchy),
+                                  :role_name  => "guest",
+                                  :context    => accounts(:yahoo)
+  end
+  
 end

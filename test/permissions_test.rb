@@ -88,5 +88,22 @@ class PermissionsTest < ActiveSupport::TestCase
     end
     
   end
+  
+  def test_hierarchical_permissions
+    create_role_assignments
+    user = users(:with_hierarchy)
+    
+    assert  user.may_edit_post_in?(posts(:searching101))
+    assert !user.may_edit_post_in?(posts(:searching102))
+    
+    assert  user.may_view_post_in?(posts(:searching101))
+    assert  user.may_view_post_in?(posts(:searching102))
+    
+    assert  user.may_create_post_in?(forums(:searching))
+    assert  user.may_create_post_in?(forums(:crawling))
+    
+    assert  user.may_create_forum_in?(accounts(:google))
+    assert !user.may_create_forum_in?(accounts(:yahoo))
+  end
 
 end
