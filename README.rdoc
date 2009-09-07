@@ -150,47 +150,31 @@ In your controller/action that checks if a user is logged in...
     
 This way the role assignments are only read when a user logs in.
 
-== Caveats and TODOs
+== Associating permissions to contexts
 
-Roles are associated with contexts, but permissions are not.  For example, this can happen.
+Now that we have contexts, one might think we should be able to say only certain permissions make sense in given contexts.
 
   Permissions < Aegis::Permissions
     permission :delete_forum do
+      context "Account"
       allow :admin
     end
   end
   
-  user = User.find_by_name("chris")
+  user = User.find(...)
+  post = Post.find(...)
   
-  user.role_in(user.account)
-  => :reader
-    
-  user.may_delete_forum_in?(user.account)
-  => false
-  
-  post = Post.find_by_name("some stupid post")
-  
-  user.role_in(post)
-  => :admin
-  
-  user.may_delete_forum_in?(post)
-  => true
-  
-Arguably that is programmer error.  You should know better than to pass in an incorrect context to a permission check.
+  user.may_delete_forum(post)
+  => Exception, "permission :delete_forum does not make sense for Post"
 
-It would be nice to associate permissions with contexts like such.
+Note that you can specify multiple contexts...
 
   Permissions < Aegis::Permissions
-    permission :delete_forum do
-      context "Account" # Alternatively, contexts "C1", "C2", ...
+    permission :some_permission do
+      contexts "Classname1", "Classname2"
       allow :admin
     end
   end
-  
-  user.may_delete_forum_in?(some_post)
-  => Exception, permission :delete_forum does not make sense in the context of a Post
-
-I'll probably add this functionality soon.
 
 === Author
 

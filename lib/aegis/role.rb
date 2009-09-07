@@ -15,9 +15,13 @@ module Aegis
       @default_permission == :allow
     end
     
-    def may?(permission, *args)
-      # puts "may? #{permission}, #{args}"
-      @permissions.may?(self, permission, *args)
+    def may?(permission, context, *args)
+      permission = Aegis::Normalization.normalize_permission(permission)
+      @permissions.may?(self, permission, context, *args)
+    end
+    
+    def may!(permission, context, *args)
+      raise PermissionError, "Access denied: #{permission}" unless may?(permission, context, *args)
     end
     
     def <=>(other)
@@ -36,15 +40,13 @@ module Aegis
     
     def method_missing(symb, *args)
       method_name = symb.to_s
-      if method_name =~ /^may_(.+)(\?|\!)$/
-        permission, severity = $1, $2
-        permission = Aegis::Normalization.normalize_permission(permission)
-        may = may?(permission, *args)
-        if severity == '!' && !may 
-          raise PermissionError, "Access denied: #{permission}" 
-        else
-          may
-        end
+      if (match = method_name.match(/^may_(.+)_(in|for)(\?|\!)$/))
+        permission, severity = match[1], match[3]
+        context = args.pop if args.length > 1
+        severity == "!" ? may!(permission, context, *args) : may?(permission, context, *args)
+      elsif (match = method_name.match(/^may_(.+)(\?|\!)$/))
+        permission, severity = match[1], match[2]
+        severity == "!" ? may!(permission, nil, *args) : may?(permission, nil, *args)
       else
         super
       end

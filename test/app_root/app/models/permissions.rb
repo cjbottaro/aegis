@@ -59,6 +59,7 @@ class Permissions < Aegis::Permissions
   end
   
   permission :create_post do
+    context "Forum"
     allow :writer
   end
   

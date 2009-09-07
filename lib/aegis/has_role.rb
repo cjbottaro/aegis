@@ -138,8 +138,8 @@ module Aegis
       def method_missing_with_aegis_permissions(symb, *args)
         method_name = symb.to_s
         if method_name =~ /^may_(.+?)_in[\!\?]$/
-          method_name = method_name[0...-4] + method_name[-1, 1] # may_edit_post_in? => may_edit_post?
-          role_in(args.shift).send(method_name, self, *args)
+          #method_name = method_name[0...-4] + method_name[-1, 1] # may_edit_post_in? => may_edit_post?
+          role_in(args.first).send(method_name, self, *args)
         elsif method_name =~ /^may_(.+?)[\!\?]$/
           role.send(symb, self, *args)
         elsif method_name =~ /^(.*?)\?$/ && queried_role = ::Permissions.find_role_by_name($1)

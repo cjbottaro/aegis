@@ -105,5 +105,13 @@ class PermissionsTest < ActiveSupport::TestCase
     assert  user.may_create_forum_in?(accounts(:google))
     assert !user.may_create_forum_in?(accounts(:yahoo))
   end
+  
+  def test_invalid_permission_context
+    create_role_assignments
+    user = users(:with_hierarchy)
+    
+    assert_nothing_raised{ user.may_create_post_in?(forums(:searching)) }
+    assert_raise(Aegis::PermissionError){ user.may_create_post_in?(posts(:searching101)) }
+  end
 
 end

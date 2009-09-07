@@ -46,15 +46,15 @@ module Aegis
         end
       end
       
-      def may?(role_or_role_name, permission, *args)
+      def may?(role_or_role_name, permission, context, *args)
         role = role_or_role_name.is_a?(Aegis::Role) ? role_or_role_name : find_role_by_name(role_or_role_name)
         blocks = @permission_blocks[permission.to_sym]
-        evaluate_permission_blocks(role, blocks, *args)
+        evaluate_permission_blocks(role, permission, blocks, context, *args)
       end
       
-      def evaluate_permission_blocks(role, blocks, *args)
-    evaluator = Aegis::PermissionEvaluator.new(role)
-    evaluator.evaluate(blocks, args)
+      def evaluate_permission_blocks(role, permission, blocks, context, *args)
+        evaluator = Aegis::PermissionEvaluator.new(role, permission, context)
+        evaluator.evaluate(blocks, args)
       end
       
       def denied?(*args)
@@ -86,8 +86,8 @@ module Aegis
           singular_target = target.singularize
           if singular_target.length < target.length
             singular_block = lambda do |*args|
-        args.delete_at 1
-        instance_exec(*args, &block)
+              args.delete_at 1
+              instance_exec(*args, &block)
             end
             singular_permission_name = "#{verb}_#{singular_target}"
             add_permission(singular_permission_name, &singular_block)
