@@ -113,5 +113,11 @@ class PermissionsTest < ActiveSupport::TestCase
     assert_nothing_raised{ user.may_create_post_in?(forums(:searching)) }
     assert_raise(Aegis::PermissionError){ user.may_create_post_in?(posts(:searching101)) }
   end
+  
+  def test_forced_role
+    user = users(:with_hierarchy)
+    user.update_attribute(:is_admin, true)
+    assert user.may_create_post_in?(forums(:searching))
+  end
 
 end

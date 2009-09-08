@@ -64,11 +64,11 @@ class HasRoleTest < ActiveSupport::TestCase
     create_role_assignments
     user = users(:with_hierarchy)
     user.update_attribute(:is_admin, true)
-    assert_equal "superuser", user.role
-    assert_equal "superuser", user.role_in(accounts(:google))
-    assert_equal "superuser", user.role_in(forums(:searching))
-    assert_equal "superuser", user.role_in(posts(:searching101))
-    assert_equal "superuser", user.role_in(posts(:searching102))
+    assert_equal :superuser, user.role.name
+    assert_equal :superuser, user.role_in(accounts(:google)).name
+    assert_equal :superuser, user.role_in(forums(:searching)).name
+    assert_equal :superuser, user.role_in(posts(:searching101)).name
+    assert_equal :superuser, user.role_in(posts(:searching102)).name
   end
   
 private

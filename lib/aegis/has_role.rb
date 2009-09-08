@@ -127,7 +127,7 @@ module Aegis
       
       def role_forced
         aegis_forced_roles.each do |proc, role_name|
-          return role_name if proc.call(self)
+          return ::Permissions.find_role_by_name!(role_name.to_sym) if proc.call(self)
         end
         nil
       end
@@ -137,8 +137,7 @@ module Aegis
       # Delegate may_...? and may_...! methods to the user's role.
       def method_missing_with_aegis_permissions(symb, *args)
         method_name = symb.to_s
-        if method_name =~ /^may_(.+?)_in[\!\?]$/
-          #method_name = method_name[0...-4] + method_name[-1, 1] # may_edit_post_in? => may_edit_post?
+        if method_name =~ /^may_(.+?)_(in|for)[\!\?]$/
           role_in(args.first).send(method_name, self, *args)
         elsif method_name =~ /^may_(.+?)[\!\?]$/
           role.send(symb, self, *args)

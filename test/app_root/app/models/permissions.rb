@@ -4,6 +4,7 @@ class Permissions < Aegis::Permissions
   role :guest
   role :student
   role :admin, :default_permission => :allow
+  role :superuser, :default_permission => :allow
   
   role :reader
   role :writer
